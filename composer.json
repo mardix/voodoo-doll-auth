@@ -1,0 +1,12 @@
+{
+    "name": "voodoo-doll/auth",
+    "type": "library",
+    "description": "A simple library to create account to login/lgout",
+    "require": {
+        "php": ">=5.5.0",
+        "voodoo-doll/model" : "1.*"
+    },
+    "autoload": {
+        "psr-0": { "Voodoo": "src/" }
+    }
+}
