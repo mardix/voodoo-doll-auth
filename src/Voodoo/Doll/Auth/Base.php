@@ -13,7 +13,7 @@ namespace Voodoo\Doll\Auth;
 use Voodoo,
     PDO;
 
-abstract class Base extends Voodoo\Doll\Model\BaseModel
+abstract class Base extends Voodoo\Core\Model
 {
     public function __construct(PDO $pdo = null)
     {

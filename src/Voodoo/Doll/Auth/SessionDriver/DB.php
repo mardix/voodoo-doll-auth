@@ -19,6 +19,30 @@ class DB extends Auth\Base
 {
     use TDriver;
     
+    /**
+     * Table definition
+     */
+    protected $__table__ = [
+        
+        self::TABLE_KEY_TIMESTAMPABLE => [
+            "onInsert" => ["created_at", "updated_at"],
+            "onUpdate" => ["updated_at"]
+        ],
+        
+        self::TABLE_KEY_SCHEMA => [
+            "id" => [ "type" => "id" ],
+            "auth_account_id" => [ "type" => "number", "index" => true ],
+            "session_id" => [ "type" => "string", "length" => 50, "index" => true ],
+            "ip" => [ "type" => "string" ],
+            "data" => [ "type" => "mediumtext" ],
+            "shadow_session" => [ "type" => "bool", "default" => false ],
+            "expired_at" => [ "type" => "dt" ],
+            "live_session_expired_at" => [ "type" => "dt" ],
+            "created_at" => [ "type" => "dt"],
+            "updated_at" => [ "type" => "ts"]          
+        ]
+    ]; 
+
     protected $tableName = "auth_session";
     
     protected static $session = null;
@@ -27,6 +51,7 @@ class DB extends Auth\Base
     
     private $accountModel;
     
+   
     protected function setup()
     {
         parent::setup();
@@ -92,7 +117,7 @@ class DB extends Auth\Base
             $session = $this->reset()
                     ->where([
                         "session_id" => $this->getCookie(),
-                        "expired_at > ? " => $this->NOW()
+                        "expired_at > ? " =>$this->getDateTime()
                      ])->findOne();
             if ($session) {
                 
@@ -118,7 +143,7 @@ class DB extends Auth\Base
             return $this->reset()->count("id");
         } else {
             return $this->reset()
-                    ->where(["live_session_expired_at > ?" => $this->NOW()])
+                    ->where(["live_session_expired_at > ?" =>$this->getDateTime()])
                     ->count(("id"));
         }
     }
@@ -151,7 +176,7 @@ class DB extends Auth\Base
             $this->reset()->delete(true);
         } else {
             $this->reset()
-                    ->whereLt("expired_at", $this->NOW())
+                    ->whereLt("expired_at",$this->getDateTime())
                     ->delete();            
         }
         return true;
@@ -200,28 +225,5 @@ class DB extends Auth\Base
         }  
         return null;
     }
-
-    
-/*******************************************************************************/
-    protected function setupTable()
-    {
-        $sql = "
-            CREATE TABLE `{$this->getTableName()}` (
-                `id` INT(10) NOT NULL AUTO_INCREMENT,
-                `auth_account_id` INT(10) NULL,
-                `session_id` CHAR(45) NOT NULL,
-                `ip` VARCHAR(250) NULL,
-                `data` MEDIUMTEXT NULL,
-                `shadow_session` TINYINT(1) NOT NULL DEFAULT '0',
-                `expired_at` DATETIME NULL,
-                `live_session_expired_at` DATETIME NULL,
-                `created_at` DATETIME NOT NULL,
-                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                PRIMARY KEY (`id`),
-                INDEX `session_id` (`session_id`),
-                INDEX `auth_account_id` (`auth_account_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-        "; 
-        $this->createTable($sql);
-    }    
+   
 }

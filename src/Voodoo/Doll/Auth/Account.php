@@ -12,8 +12,65 @@ namespace Voodoo\Doll\Auth;
 use Voodoo\Core,
     Voodoo\Doll\Crypto;
 
-class Account extends Base
+
+class Account extends Core\Model
 {
+    /**
+     * Table definition
+     */
+    protected $__table__ = [
+        
+        self::TABLE_KEY_TIMESTAMPABLE => [
+            "onInsert" => ["created_at", "updated_at"],
+            "onUpdate" => ["updated_at"]
+        ],
+        
+        self::TABLE_KEY_SCHEMA => [
+            "id" => [ "type" => "id" ],
+            "name" => [ "type" => "string", "length" => 75],
+            "email" => [ "type" => "string", "length" => 125, "index" => true ],
+            "password_hash" => [ "type" => "string" ],
+            "require_password_change" => ["type" => "bool", "default" => '0'],
+            "first_name" => [ "type" => "string" ],
+            "last_name" => [ "type" => "string" ],
+            "dob" => [ "type" => "date" ],
+            "gender" => [ "type" => "string", "length" => 15 ],
+            "address" => [ "type" => "string" ],
+            "address2" => [ "type" => "string" ],
+            "city" => [ "type" => "string"  ],
+            "state" => [ "type" => "string" ],
+            "zip_code" => [ "type" => "string" ],
+            "country" => [ "type" => "string" ],
+            "telephone" => [ "type" => "string" ],
+            "company_name" => [ "type" => "string" ],
+            "timezone" => [ "type" => "string", "length" => 25, "default" => "EST" ],
+            "lang" => [ "type" => "string", "length" => 4, "default" => "EN" ],
+            "picture_url" => [ "type" => "string" ],
+            "access_level" => ["type" => "TINYINT", "length" => 3, "default" => '1' ],
+            "status" => ["type" => "string", "length" => 25, "default" => "ACTIVE", "index" => true ],
+            "status_description" => ["type" => "text"],
+            "history" => ["type" => "LONGTEXT"],
+            "newsletter_optin" => ["type" => "bool", "default" => 1],
+            "enable_auth_login" => ["type" => "bool", "default" => true],
+            "facebook_uid" => ["type" => "string", "length" => 50, "index" => true ],
+            "facebook_token" => ["type" => "string", "length" => 125],
+            "facebook_token_secret" => ["type" => "string"],
+            "twitter_uid" => ["type" => "string", "length" => 50, "index" => true ],
+            "twitter_token" => ["type" => "string", "length" => 125],
+            "twitter_token_secret" => ["type" => "string"],  
+            "twitter_name" => ["type" => "string", "length" => 50],
+            "google_uid" => ["type" => "string", "length" => 50, "index" => true ],
+            "google_token" => ["type" => "string", "length" => 125],
+            "google_token_secret" => ["type" => "string"],            
+            "github_uid" => ["type" => "string", "length" => 50, "index" => true ],
+            "github_token" => ["type" => "string", "length" => 125],
+            "github_token_secret" => ["type" => "string"],            
+            "last_login" => [ "type" => "dt"],
+            "created_at" => [ "type" => "dt"],
+            "updated_at" => [ "type" => "ts"]          
+        ]
+    ]; 
+
     const ACCESS_LEVEL_USER = 0;
     const ACCESS_LEVEL_VIEWER = 1;
     const ACCESS_LEVEL_EDITOR = 2;
@@ -24,14 +81,17 @@ class Account extends Base
     const OAUTH_FACEBOOK = "facebook";
     const OAUTH_TWITTER = "twitter";
     const OAUTH_GOOGLE = "google";
-    const OAUTH_GITHUB = "github";
-    const OAUTH_AMAZON = "amazon";
-    const OAUTH_YAHOO = "yahoo";  
+    const OAUTH_GITHUB = "github"; 
     
-    const STATUS_ACTIVE = "active";
-    const STATUS_SUSPENDED = "suspended";
-    const STATUS_DELETED = "deleted";
-    const STATUS_PROBATION = "probation";
+    const STATUS_ACTIVE = "ACTIVE";
+    const STATUS_DELETED = "DELETED";
+    const STATUS_CANCELLED = "CANCELLED";
+    const STATUS_SUSPENDED = "SUSPENDED";
+    const STATUS_PROBATION = "PROBATION";
+    
+    const GENDER_MALE = "male";
+    const GENDER_FEMALE = "female";
+    const GENDER_OTHER = "other";
     
     /**
      * Table name
@@ -47,7 +107,6 @@ class Account extends Base
      * @var string
      */
     protected $randomPasswordLen = 8;
-    
     
     /**
      * Find by email
@@ -105,7 +164,7 @@ class Account extends Base
      * 
      * @param string $authProvider
      * @param int $uid
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      * @throws Exception
      */
     public function loginWithOAuth($authProvider, $uid)
@@ -125,7 +184,7 @@ class Account extends Base
      * @param type $password
      * @throws Exception
      */
-    public function createWithEmail($email, $password = null, $name = "")
+    public function createWithEmail($email, $password = null, $name = "", $status = self::STATUS_ACTIVE )
     {
         if(! Core\Helpers::validEmail($email)) {
             throw new Exception("Invalid Email");
@@ -141,7 +200,7 @@ class Account extends Base
             $data = [
                 "name" => $name,
                 "email" => $email,
-                "status" => self::STATUS_ACTIVE
+                "status" => $status
             ];
             if ($password) {
                 $password = trim($password);
@@ -159,10 +218,10 @@ class Account extends Base
      * 
      * @param string $authProvider
      * @param int $uid
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      * @throws Exception
      */
-    public function createWithOAuth($authProvider, $uid)
+    public function createWithOAuth($authProvider, $uid, $status = self::STATUS_ACTIVE)
     {
         $column = "{$authProvider}_uid";
         $user = $this->reset()->where([$column => $uid])->findOne();
@@ -171,7 +230,7 @@ class Account extends Base
         }
         return $this->insert([
             $column => $uid,
-            "status" => self::STATUS_ACTIVE,
+            "status" => $status,
             "has_auth_login" => 1
         ]);
     }
@@ -179,12 +238,12 @@ class Account extends Base
     /**
      * Update the last login datetime
      * 
-     * @return \Voodoo\Doll\Auth\Login
+     * @return \Voodoo\Doll\Auth\Account
      */
     public function updateLastLogin()
     {
         if ($this->isSingleRow()) {
-            $this->update(["last_login" => $this->NOW()]);
+            $this->update(["last_login" => $this->getDateTime()]);
         }
         return $this;
     }
@@ -214,7 +273,7 @@ class Account extends Base
      * Change the password
      *
      * @param type $password
-     * @return \App\Www\Adminzone\Model\Admin\User
+     * @return \Voodoo\Doll\Auth\Account
      * @throws Exception
      */
     public function changePassword($password)
@@ -237,7 +296,7 @@ class Account extends Base
      * Change the login email
      * 
      * @param type $email
-     * @return \App\Www\Adminzone\Model\Admin\User
+     * @return  \Voodoo\Doll\Auth\Account
      * @throws Exception
      */
     public function changeEmail($email)
@@ -267,7 +326,7 @@ class Account extends Base
      /**
      * Set the screen name
      * @param string $name
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      */
     public function setName($name)
     {
@@ -304,22 +363,13 @@ class Account extends Base
         return $this->status;
     }
     
-    /**
-     * Return the status info 
-     * 
-     * @return type
-     */
-    public function getStatusInfo()
-    {
-        return $this->status_info;
-    }
     
     /**
      * Set the status info 
      * 
      * @param type $status
      * @param type $description
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      */
     public function setStatus($status, $description = "")
     {
@@ -337,7 +387,7 @@ class Account extends Base
      * @param type $authProvider
      * @param type $token
      * @param type $secret
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      */
     public function setOAuthToken($authProvider, $token, $secret = "") {
         $this->update([
@@ -367,7 +417,7 @@ class Account extends Base
      * Set the OAUTH 
      * @param type $authProvider
      * @param type $uid
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      */
     public function setOAuthUID($authProvider, $uid)
     {
@@ -386,31 +436,12 @@ class Account extends Base
         return $this->$column ;
     }
     
-    /**
-     * Set the default OAUTH provider 
-     * @param string $provider
-     * @return \Voodoo\Doll\Auth\User
-     */
-    public function setDefaultOAuthProvider($provider)
-    {
-        $this->update(["default_oauth_provider" => $provider]);
-        return $this;
-    }
-    
-    /**
-     * Get the default OAuth Provider
-     * @return string
-     */
-    public function getDefaultOAuthProvider()
-    {
-        return $this->default_oauth_provider ;
-    }
     
     /**
      * 
      * @param type $authProvider
      * @param string $creen_name
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      */
     public function setOAuthTwitterScreenName($name)
     {
@@ -430,21 +461,15 @@ class Account extends Base
     
     
     /**
-     * Check if the OAUTH for a certain provider is set by checking the  
-     * Or if the account has auth enabled
+     * Enable/Disable auth login
      * 
-     * @param string $authProvider
-     * @return string
+     * @param bool
+     * @return \Voodoo\Doll\Auth\Account
      */
-    public function hasOAuth($authProvider = null)
+    public function enableAuthLogin($enable = true)
     {
-        if (!$authProvider){
-            return ($this->has_auth_login) ? true : false;
-        } else {
-            $column = $authProvider . "_uid";
-            return ($this->$column) ? true : false  ;           
-        }
-
+        $this->update(["enable_auth_login" => $enable ? "1" : "0"]);
+        return $this;
     }
       
     /**
@@ -480,7 +505,7 @@ class Account extends Base
      * Set the require password on the account
      * 
      * @param bool $bool
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      */
     public function setRequirePasswordChange($bool = true)
     {
@@ -501,7 +526,7 @@ class Account extends Base
     /**
      * Top opt-in/out user from a newsletter
      * @param bool $bool
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      */
     public function setNewsletterOptin($bool = true)
     {
@@ -519,13 +544,13 @@ class Account extends Base
     }
     
     /**
-     * Set the profile photo
-     * @param string $photo
-     * @return \Voodoo\Doll\Auth\User
+     * Set account picture url
+     * @param string $url
+     * @return \Voodoo\Doll\Auth\Account
      */
-    public function setProfilePhoto($photo)
+    public function setPictureUrl($url)
     {
-        $this->update(["profile_photo" => $photo]);
+        $this->update(["picture_url" => $url]);
         return $this;
     }
     
@@ -534,15 +559,15 @@ class Account extends Base
      * 
      * @return string
      */
-    public function getProfilePhoto()
+    public function getPictureUrl()
     {
-        return $this->profile_photo;
+        return $this->picture_url;
     }
     
     /**
      * Set the access level
      * @param int $acl
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      */
     public function setAccessLevel($acl)
     {
@@ -564,7 +589,7 @@ class Account extends Base
      * 
      * @param type $title
      * @param array $data
-     * @return \Voodoo\Doll\Auth\User
+     * @return \Voodoo\Doll\Auth\Account
      */
     public function setHistory($title, Array $data = [])
     {
@@ -573,7 +598,7 @@ class Account extends Base
             $history = [];
         }
         $history[] = [
-            "datetime" => date("Y-m-d H:i:s"),
+            "datetime" => $this->getDateTime(),
             "title" => $title,
             "data" => $data
         ];
@@ -581,6 +606,18 @@ class Account extends Base
         $this->update(["history" => $history]);
         return $this;
     }
+    
+    /**
+     * Return the age based of the DOB
+     * @return int
+     */
+    public function getAge()
+    {
+        return (new \DateTime($this->dob))
+                ->diff(new \DateTime)
+                ->format("%y");        
+    }
+    
     
     /**
      * Prepare the email to be processed
@@ -591,56 +628,6 @@ class Account extends Base
     private function formatEmail($email)
     {
         return trim(strtolower($email));
-    }
-    
-/*******************************************************************************/
-    /**
-     * Setup the table
-     */
-    protected function setupTable()
-    {
-        $sql = "
-        CREATE TABLE `{$this->getTableName()}` (
-            `id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
-            `name` VARCHAR(50) NOT NULL DEFAULT '',
-            `email` VARCHAR(125) NOT NULL DEFAULT '',
-            `password_hash` VARCHAR(125) NOT NULL DEFAULT '',
-            `profile_photo` VARCHAR(125) NOT NULL DEFAULT '',
-            `access_level` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
-            `status` VARCHAR(25) NULL DEFAULT 'active',
-            `status_description` VARCHAR(250) NULL DEFAULT NULL,
-            `history` LONGTEXT,
-            `newsletter_optin` TINYINT(1) NOT NULL DEFAULT '1',
-            `last_login` DATETIME NOT NULL,
-            `require_password_change` TINYINT(1) NOT NULL DEFAULT '0',
-            `created_at` DATETIME NOT NULL,
-            `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            `has_auth_login` TINYINT(1) NOT NULL DEFAULT '0',
-            `default_oauth_provider` VARCHAR(50) NOT NULL DEFAULT '',
-            `facebook_uid` VARCHAR(50) NULL DEFAULT NULL,
-            `facebook_token` VARCHAR(125) NULL DEFAULT NULL,
-            `facebook_token_secret` VARCHAR(250) NULL DEFAULT NULL,
-            `twitter_uid` VARCHAR(50) NULL DEFAULT NULL,
-            `twitter_token` VARCHAR(50) NULL DEFAULT NULL,
-            `twitter_token_secret` VARCHAR(250) NULL DEFAULT NULL,
-            `twitter_name` VARCHAR(50) NULL DEFAULT NULL,
-            `google_uid` VARCHAR(50) NULL DEFAULT NULL,
-            `google_token` VARCHAR(50) NULL DEFAULT NULL,
-            `google_token_secret` VARCHAR(250) NULL DEFAULT NULL,
-            `github_uid` VARCHAR(50) NULL DEFAULT NULL,
-            `github_token` VARCHAR(50) NULL DEFAULT NULL,
-            `github_token_secret` VARCHAR(250) NULL DEFAULT NULL,
-
-            PRIMARY KEY (`id`),
-            INDEX `email` (`email`),
-            INDEX `status` (`status`),
-            INDEX `facebook_uid` (`facebook_uid`),
-            INDEX `twitter_uid` (`twitter_uid`),
-            INDEX `google_uid` (`google_uid`),
-            INDEX `github_uid` (`github_uid`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-        ";
-        $this->createTable($sql);
     }
    
 }
